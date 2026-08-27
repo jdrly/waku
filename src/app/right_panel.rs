@@ -2196,34 +2196,17 @@ impl Waku {
         column
     }
 
-    /// State pill: colored dot + label, so state never reads by color alone.
-    fn github_state_pill(&self, state: &str, is_draft: bool, theme: &Theme) -> Div {
-        let (color, label) = if is_draft {
-            (theme.text_tertiary, tr!("github.draft"))
-        } else {
-            match state {
-                "OPEN" => (theme.success, tr!("github.open")),
-                "MERGED" => (gpui::hsla(0.78, 0.55, 0.62, 1.0), tr!("github.merged")),
-                _ => (theme.danger, tr!("github.closed")),
-            }
-        };
-        div()
-            .px(px(7.0))
-            .py(px(2.0))
-            .rounded_full()
-            .bg(color.opacity(0.14))
-            .flex()
-            .flex_none()
-            .items_center()
-            .gap(px(4.0))
-            .child(div().size(px(6.0)).rounded_full().bg(color))
-            .child(
-                div()
-                    .text_size(sp(10.5))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(color)
-                    .child(label),
-            )
+    /// State color for the pull-request icon: green open, purple merged,
+    /// red closed, gray draft.
+    fn github_state_color(state: &str, is_draft: bool, theme: &Theme) -> Hsla {
+        if is_draft {
+            return theme.text_tertiary;
+        }
+        match state {
+            "OPEN" => theme.success,
+            "MERGED" => gpui::hsla(0.78, 0.55, 0.62, 1.0),
+            _ => theme.danger,
+        }
     }
 
     /// Author avatar: initial in a tinted circle.
@@ -2288,22 +2271,20 @@ impl Waku {
             .w_full()
             .px(px(10.0))
             .py(px(8.0))
-            .rounded(px(8.0))
-            .border_1()
+            .border_b_1()
             .border_color(theme.border)
-            .bg(theme.composer)
             .cursor_pointer()
-            .hover(|style| style.bg(theme.overlay).border_color(theme.border_strong))
+            .hover(|style| style.bg(theme.overlay))
             .flex()
             .items_start()
             .gap(px(10.0))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.open_github_pull_request(number, cx);
             }))
-            .child(div().pt(px(1.0)).child(self.github_state_pill(
-                &pull_request.state,
-                pull_request.is_draft,
-                &theme,
+            .child(div().pt(px(1.0)).child(icon(
+                "icons/git-pull-request.svg",
+                14.0,
+                Self::github_state_color(&pull_request.state, pull_request.is_draft, &theme),
             )))
             .child(
                 div()
@@ -2400,7 +2381,11 @@ impl Waku {
                     .flex()
                     .items_start()
                     .gap(px(10.0))
-                    .child(self.github_state_pill(&detail.state, detail.is_draft, &theme))
+                    .child(div().pt(px(2.0)).child(icon(
+                        "icons/git-pull-request.svg",
+                        18.0,
+                        Self::github_state_color(&detail.state, detail.is_draft, &theme),
+                    )))
                     .child(
                         div()
                             .flex_1()
