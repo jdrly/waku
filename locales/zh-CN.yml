@@ -173,6 +173,7 @@ github.open: 开启
 github.merged: 已合并
 github.closed: 已关闭
 github.files_changed: "已更改 %{count} 个文件"
+github.view_on_github: 在 GitHub 中查看
 github.needs_gh: 未找到 gh CLI
 github.needs_gh_description: "请安装 GitHub CLI (gh) 并通过 `gh auth login` 登录，然后刷新。"
 github.needs_auth: GitHub 未登录

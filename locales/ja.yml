@@ -180,6 +180,7 @@ github.open: オープン
 github.merged: マージ済み
 github.closed: クローズ済み
 github.files_changed: "%{count} 件のファイルを変更"
+github.view_on_github: GitHub で表示
 github.needs_gh: gh CLI が見つかりません
 github.needs_gh_description: "GitHub CLI (gh) をインストールし、`gh auth login` でサインインしてから更新してください。"
 github.needs_auth: GitHub にサインインしていません

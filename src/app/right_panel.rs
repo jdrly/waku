@@ -2372,91 +2372,132 @@ impl Waku {
             .w(px(0.0))
             .h(px(0.0))
         };
+        let state_color = Self::github_state_color(&detail.state, detail.is_draft, &theme);
         div()
             .w_full()
             .min_h_0()
             .flex()
             .flex_col()
+            // Toolbar: back on the left, the PR link on the right.
             .child(
                 div()
                     .px(px(14.0))
-                    .py(px(12.0))
+                    .pt(px(10.0))
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        div()
+                            .id("github-back")
+                            .tab_index(0)
+                            .focus_visible(|style| style.border_1().border_color(theme.accent))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(6.0))
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0))
+                            .text_size(sp(12.0))
+                            .text_color(theme.text_secondary)
+                            .cursor_pointer()
+                            .hover(|style| style.bg(theme.overlay))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.github_selected = None;
+                                cx.notify();
+                            }))
+                            .child(icon("icons/arrow-left.svg", 12.0, theme.text_secondary))
+                            .child(tr!("github.back")),
+                    )
+                    .child(
+                        div()
+                            .id("github-open")
+                            .tab_index(0)
+                            .focus_visible(|style| style.border_1().border_color(theme.accent))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(6.0))
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0))
+                            .text_size(sp(12.0))
+                            .text_color(theme.text_secondary)
+                            .cursor_pointer()
+                            .hover(|style| style.bg(theme.overlay))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.open_url(
+                                    &this
+                                        .github_selected
+                                        .as_ref()
+                                        .map(|detail| detail.url.clone())
+                                        .unwrap_or_default(),
+                                );
+                            }))
+                            .child(icon("icons/external-link.svg", 12.0, theme.text_secondary))
+                            .child(tr!("github.view_on_github")),
+                    ),
+            )
+            // Title line: the state-tinted PR glyph rides with the title,
+            // exactly like the list rows.
+            .child(
+                div()
+                    .px(px(14.0))
+                    .pt(px(2.0))
+                    .pb(px(6.0))
+                    .flex()
+                    .items_center()
+                    .gap(px(8.0))
+                    .child(icon("icons/git-pull-request.svg", 15.0, state_color))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .text_size(sp(13.0))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme.text)
+                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                            .child(format!("#{} {}", detail.number, detail.title)),
+                    ),
+            )
+            // Meta row: avatar, author/branches/files, then colored +/-.
+            .child(
+                div()
+                    .px(px(14.0))
+                    .pb(px(10.0))
                     .border_b_1()
                     .border_color(theme.border)
                     .flex()
-                    .items_start()
-                    .gap(px(10.0))
-                    .child(div().pt(px(2.0)).child(icon(
-                        "icons/git-pull-request.svg",
-                        18.0,
-                        Self::github_state_color(&detail.state, detail.is_draft, &theme),
-                    )))
+                    .flex_wrap()
+                    .items_center()
+                    .gap(px(6.0))
+                    .child(self.github_avatar(&detail.author, &theme))
                     .child(
                         div()
-                            .flex_1()
-                            .min_w_0()
-                            .flex()
-                            .flex_col()
-                            .gap(px(6.0))
-                            // Back affordance on its own line, out of the way
-                            // of the title it used to sit beside.
-                            .child(
-                                div()
-                                    .id("github-back")
-                                    .tab_index(0)
-                                    .focus_visible(|style| {
-                                        style.border_1().border_color(theme.accent)
-                                    })
-                                    .px(px(8.0))
-                                    .py(px(3.0))
-                                    .rounded(px(6.0))
-                                    .text_size(sp(12.0))
-                                    .text_color(theme.text_secondary)
-                                    .cursor_pointer()
-                                    .hover(|style| style.bg(theme.overlay))
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.github_selected = None;
-                                        cx.notify();
-                                    }))
-                                    .child(tr!("github.back")),
-                            )
-                            .child(
-                                div()
-                                    .text_size(sp(13.0))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(theme.text)
-                                    .text_overflow(gpui::TextOverflow::Truncate("…".into()))
-                                    .child(format!("#{} {}", detail.number, detail.title)),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_wrap()
-                                    .items_center()
-                                    .gap(px(6.0))
-                                    .child(self.github_avatar(&detail.author, &theme))
-                                    .child(
-                                        div()
-                                            .text_size(sp(11.5))
-                                            .text_color(theme.text_secondary)
-                                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
-                                            .child(format!(
-                                                "{} · {} → {} · {} · {} · {}",
-                                                detail.author,
-                                                detail.head_ref,
-                                                detail.base_ref,
-                                                tr!(
-                                                    "github.files_changed",
-                                                    count = detail.changed_files
-                                                ),
-                                                format!(
-                                                    "+{} −{}",
-                                                    detail.additions, detail.deletions
-                                                ),
-                                                time_ago
-                                            )),
-                                    ),
-                            ),
+                            .text_size(sp(11.5))
+                            .text_color(theme.text_secondary)
+                            .child(format!(
+                                "{} · {} → {} · {}",
+                                detail.author,
+                                detail.head_ref,
+                                detail.base_ref,
+                                tr!("github.files_changed", count = detail.changed_files)
+                            )),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(11.5))
+                            .text_color(theme.success)
+                            .child(format!("+{}", detail.additions)),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(11.5))
+                            .text_color(theme.danger)
+                            .child(format!("−{}", detail.deletions)),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(11.5))
+                            .text_color(theme.text_secondary)
+                            .child(time_ago),
                     ),
             )
             .child(

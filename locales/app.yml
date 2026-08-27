@@ -353,6 +353,8 @@ github.closed:
   en: Closed
 github.files_changed:
   en: "%{count} files changed"
+github.view_on_github:
+  en: View on GitHub
 github.needs_gh:
   en: The gh CLI was not found
 github.needs_gh_description:
