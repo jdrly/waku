@@ -2173,8 +2173,13 @@ impl Waku {
             }
             Some(pull_requests) => {
                 let mut rows = div().w_full().flex().flex_col();
-                for pull_request in pull_requests.iter() {
-                    rows = rows.child(self.render_github_pull_request_row(pull_request, cx));
+                let count = pull_requests.len();
+                for (index, pull_request) in pull_requests.iter().enumerate() {
+                    rows = rows.child(self.render_github_pull_request_row(
+                        pull_request,
+                        index + 1 == count,
+                        cx,
+                    ));
                 }
                 column = column.child(
                     div()
@@ -2246,6 +2251,7 @@ impl Waku {
     fn render_github_pull_request_row(
         &self,
         pull_request: &waku_client::github::GithubPullRequestSummary,
+        last: bool,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let theme = Theme::current(cx);
@@ -2271,8 +2277,7 @@ impl Waku {
             .w_full()
             .px(px(10.0))
             .py(px(8.0))
-            .border_b_1()
-            .border_color(theme.border)
+            .when(!last, |row| row.border_b_1().border_color(theme.border))
             .cursor_pointer()
             .hover(|style| style.bg(theme.overlay))
             .flex()
