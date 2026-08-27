@@ -176,6 +176,10 @@ right_panel.pull_requests: プルリクエスト
 right_panel.pull_requests_description: このプロジェクトのオープンなプルリクエスト
 github.loading: プルリクエストを読み込み中…
 github.refresh: 更新
+github.open: オープン
+github.merged: マージ済み
+github.closed: クローズ済み
+github.files_changed: "%{count} 件のファイルを変更"
 github.needs_gh: gh CLI が見つかりません
 github.needs_gh_description: "GitHub CLI (gh) をインストールし、`gh auth login` でサインインしてから更新してください。"
 github.needs_auth: GitHub にサインインしていません

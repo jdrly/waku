@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use serde::Deserialize;
 use waku_protocol::github::{
     GithubAuth, GithubAuthStatus, GithubPullRequestComment, GithubPullRequestDetail,
@@ -67,6 +67,8 @@ struct RawPullRequest {
 
 impl RawPullRequest {
     fn into_summary(self) -> GithubPullRequestSummary {
+        let updated_at_unix = unix_seconds(&self.updated_at);
+        let updated_at = self.updated_at;
         GithubPullRequestSummary {
             number: self.number,
             title: self.title,
@@ -75,7 +77,8 @@ impl RawPullRequest {
             is_draft: self.is_draft,
             head_ref: self.head_ref,
             base_ref: self.base_ref,
-            updated_at: self.updated_at,
+            updated_at,
+            updated_at_unix,
             additions: self.additions,
             deletions: self.deletions,
             url: self.url,
@@ -93,6 +96,8 @@ impl RawPullRequest {
                 created_at: comment.created_at,
             })
             .collect();
+        let updated_at_unix = unix_seconds(&self.updated_at);
+        let updated_at = self.updated_at;
         GithubPullRequestDetail {
             number: self.number,
             title: self.title,
@@ -101,7 +106,8 @@ impl RawPullRequest {
             is_draft: self.is_draft,
             head_ref: self.head_ref,
             base_ref: self.base_ref,
-            updated_at: self.updated_at,
+            updated_at,
+            updated_at_unix,
             additions: self.additions,
             deletions: self.deletions,
             url: self.url,
@@ -242,6 +248,13 @@ pub fn pull_request_detail(cwd: &Path, number: u64) -> anyhow::Result<GithubPull
     parse_pull_request_detail(stdout)
 }
 
+/// Unix seconds for an ISO-8601 `gh` timestamp; `0` when it does not parse.
+fn unix_seconds(timestamp: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(timestamp)
+        .map(|time| time.timestamp())
+        .unwrap_or(0)
+}
+
 fn first_line(text: &str) -> Option<&str> {
     text.lines().find(|line| !line.trim().is_empty())
 }
@@ -301,6 +314,7 @@ mod tests {
         assert_eq!(rows[0].head_ref, "fix/thinking-text-parsing");
         assert_eq!(rows[1].is_draft, true);
         assert_eq!(rows[1].additions, 10);
+        assert!(rows[0].updated_at_unix > 1_700_000_000);
     }
 
     #[test]

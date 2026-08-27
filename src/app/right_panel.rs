@@ -2196,6 +2196,70 @@ impl Waku {
         column
     }
 
+    /// State pill: colored dot + label, so state never reads by color alone.
+    fn github_state_pill(&self, state: &str, is_draft: bool, theme: &Theme) -> Div {
+        let (color, label) = if is_draft {
+            (theme.text_tertiary, tr!("github.draft"))
+        } else {
+            match state {
+                "OPEN" => (theme.success, tr!("github.open")),
+                "MERGED" => (gpui::hsla(0.78, 0.55, 0.62, 1.0), tr!("github.merged")),
+                _ => (theme.danger, tr!("github.closed")),
+            }
+        };
+        div()
+            .px(px(7.0))
+            .py(px(2.0))
+            .rounded_full()
+            .bg(color.opacity(0.14))
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(px(4.0))
+            .child(div().size(px(6.0)).rounded_full().bg(color))
+            .child(
+                div()
+                    .text_size(sp(10.5))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(color)
+                    .child(label),
+            )
+    }
+
+    /// Author avatar: initial in a tinted circle.
+    fn github_avatar(&self, login: &str, theme: &Theme) -> Div {
+        let initial = login
+            .chars()
+            .next()
+            .map(|character| character.to_ascii_uppercase())
+            .unwrap_or('?');
+        div()
+            .size(px(22.0))
+            .rounded_full()
+            .bg(theme.accent.opacity(0.18))
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .text_size(sp(10.5))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.accent)
+                    .child(initial.to_string()),
+            )
+    }
+
+    fn github_time_ago(&self, updated_at: &str, updated_at_unix: i64) -> String {
+        if updated_at_unix > 0 {
+            super::sidebar::format_time_ago(
+                waku_client::model::unix_time().saturating_sub(updated_at_unix as u64),
+            )
+        } else {
+            updated_at.split('T').next().unwrap_or("").to_owned()
+        }
+    }
+
     fn render_github_pull_request_row(
         &self,
         pull_request: &waku_client::github::GithubPullRequestSummary,
@@ -2203,14 +2267,10 @@ impl Waku {
     ) -> Stateful<Div> {
         let theme = Theme::current(cx);
         let number = pull_request.number;
+        let time_ago = self.github_time_ago(&pull_request.updated_at, pull_request.updated_at_unix);
         let mut meta = format!(
-            "{} · {} → {} · +{} −{} · {}",
-            pull_request.author,
-            pull_request.head_ref,
-            pull_request.base_ref,
-            pull_request.additions,
-            pull_request.deletions,
-            pull_request.updated_at.split('T').next().unwrap_or("")
+            "{} · {} → {}",
+            pull_request.author, pull_request.head_ref, pull_request.base_ref
         );
         if pull_request.is_draft {
             meta.push_str(&format!(" · {}", tr!("github.draft")));
@@ -2226,31 +2286,77 @@ impl Waku {
             .tab_index(0)
             .focus_visible(|style| style.border_1().border_color(theme.accent))
             .w_full()
-            .px(px(9.0))
-            .py(px(7.0))
+            .px(px(10.0))
+            .py(px(8.0))
             .rounded(px(8.0))
+            .border_1()
+            .border_color(theme.border)
+            .bg(theme.composer)
             .cursor_pointer()
-            .hover(|style| style.bg(theme.overlay))
+            .hover(|style| style.bg(theme.overlay).border_color(theme.border_strong))
             .flex()
-            .flex_col()
-            .gap(px(3.0))
+            .items_start()
+            .gap(px(10.0))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.open_github_pull_request(number, cx);
             }))
+            .child(div().pt(px(1.0)).child(self.github_state_pill(
+                &pull_request.state,
+                pull_request.is_draft,
+                &theme,
+            )))
             .child(
                 div()
-                    .text_size(sp(12.5))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme.text)
-                    .text_overflow(gpui::TextOverflow::Truncate("…".into()))
-                    .child(format!("#{} {}", pull_request.number, pull_request.title)),
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(3.0))
+                    .child(
+                        div()
+                            .text_size(sp(12.5))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme.text)
+                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                            .child(format!("#{} {}", pull_request.number, pull_request.title)),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(11.5))
+                            .text_color(theme.text_secondary)
+                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                            .child(meta),
+                    ),
             )
             .child(
                 div()
-                    .text_size(sp(11.5))
-                    .text_color(theme.text_secondary)
-                    .text_overflow(gpui::TextOverflow::Truncate("…".into()))
-                    .child(meta),
+                    .flex_none()
+                    .flex()
+                    .flex_col()
+                    .items_end()
+                    .gap(px(2.0))
+                    .child(
+                        div()
+                            .text_size(sp(11.0))
+                            .text_color(theme.text_tertiary)
+                            .child(time_ago),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(5.0))
+                            .text_size(sp(11.0))
+                            .child(
+                                div()
+                                    .text_color(theme.success)
+                                    .child(format!("+{}", pull_request.additions)),
+                            )
+                            .child(
+                                div()
+                                    .text_color(theme.danger)
+                                    .child(format!("−{}", pull_request.deletions)),
+                            ),
+                    ),
             )
     }
 
@@ -2261,6 +2367,7 @@ impl Waku {
     ) -> Div {
         let theme = Theme::current(cx);
         let palette = MarkdownPalette::from_theme(&theme);
+        let time_ago = self.github_time_ago(&detail.updated_at, detail.updated_at_unix);
         let ctx = MarkdownCtx::new(
             String::from("github-detail"),
             &palette,
@@ -2287,16 +2394,22 @@ impl Waku {
             .child(
                 div()
                     .px(px(14.0))
-                    .py(px(10.0))
+                    .py(px(12.0))
                     .border_b_1()
                     .border_color(theme.border)
                     .flex()
-                    .flex_col()
-                    .gap(px(4.0))
+                    .items_start()
+                    .gap(px(10.0))
+                    .child(self.github_state_pill(&detail.state, detail.is_draft, &theme))
                     .child(
                         div()
+                            .flex_1()
+                            .min_w_0()
                             .flex()
-                            .items_center()
+                            .flex_col()
+                            .gap(px(6.0))
+                            // Back affordance on its own line, out of the way
+                            // of the title it used to sit beside.
                             .child(
                                 div()
                                     .id("github-back")
@@ -2319,28 +2432,41 @@ impl Waku {
                             )
                             .child(
                                 div()
-                                    .ml(px(8.0))
-                                    .text_size(sp(12.0))
-                                    .text_color(theme.text_tertiary)
+                                    .text_size(sp(13.0))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(theme.text)
                                     .text_overflow(gpui::TextOverflow::Truncate("…".into()))
-                                    .child(format!(
-                                        "{} · {} → {} · +{} −{} · {}",
-                                        detail.author,
-                                        detail.head_ref,
-                                        detail.base_ref,
-                                        detail.additions,
-                                        detail.deletions,
-                                        detail.updated_at.split('T').next().unwrap_or("")
-                                    )),
+                                    .child(format!("#{} {}", detail.number, detail.title)),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_wrap()
+                                    .items_center()
+                                    .gap(px(6.0))
+                                    .child(self.github_avatar(&detail.author, &theme))
+                                    .child(
+                                        div()
+                                            .text_size(sp(11.5))
+                                            .text_color(theme.text_secondary)
+                                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                                            .child(format!(
+                                                "{} · {} → {} · {} · {} · {}",
+                                                detail.author,
+                                                detail.head_ref,
+                                                detail.base_ref,
+                                                tr!(
+                                                    "github.files_changed",
+                                                    count = detail.changed_files
+                                                ),
+                                                format!(
+                                                    "+{} −{}",
+                                                    detail.additions, detail.deletions
+                                                ),
+                                                time_ago
+                                            )),
+                                    ),
                             ),
-                    )
-                    .child(
-                        div()
-                            .text_size(sp(13.0))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.text)
-                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
-                            .child(format!("#{} {}", detail.number, detail.title)),
                     ),
             )
             .child(

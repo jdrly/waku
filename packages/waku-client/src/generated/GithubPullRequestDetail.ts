@@ -6,7 +6,7 @@ import type { GithubPullRequestComment } from "./GithubPullRequestComment";
  * plus the markdown body, changed-file count, and the conversation comments
  * (already ordered as GitHub reports them, newest thread first).
  */
-export type GithubPullRequestDetail = { number: number, title: string, state: string, author: string, isDraft: boolean, headRef: string, baseRef: string, updatedAt: string, additions: number, deletions: number, url: string,
+export type GithubPullRequestDetail = { number: number, title: string, state: string, author: string, isDraft: boolean, headRef: string, baseRef: string, updatedAt: string, updatedAtUnix: number, additions: number, deletions: number, url: string,
 /**
  * Markdown body as written by the PR author.
  */

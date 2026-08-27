@@ -42,6 +42,9 @@ pub struct GithubPullRequestSummary {
     pub base_ref: String,
     /// ISO-8601 timestamp as reported by `gh`.
     pub updated_at: String,
+    /// Unix seconds for `updated_at`, precomputed so clients never parse
+    /// dates. `0` when the timestamp did not parse.
+    pub updated_at_unix: i64,
     pub additions: i64,
     pub deletions: i64,
     pub url: String,
@@ -61,6 +64,7 @@ pub struct GithubPullRequestDetail {
     pub head_ref: String,
     pub base_ref: String,
     pub updated_at: String,
+    pub updated_at_unix: i64,
     pub additions: i64,
     pub deletions: i64,
     pub url: String,

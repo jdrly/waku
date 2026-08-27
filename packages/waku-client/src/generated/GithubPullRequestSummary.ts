@@ -12,4 +12,9 @@ state: string, author: string, isDraft: boolean, headRef: string, baseRef: strin
 /**
  * ISO-8601 timestamp as reported by `gh`.
  */
-updatedAt: string, additions: number, deletions: number, url: string, };
+updatedAt: string,
+/**
+ * Unix seconds for `updated_at`, precomputed so clients never parse
+ * dates. `0` when the timestamp did not parse.
+ */
+updatedAtUnix: number, additions: number, deletions: number, url: string, };

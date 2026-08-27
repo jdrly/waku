@@ -345,6 +345,14 @@ github.loading:
   en: Loading pull requests…
 github.refresh:
   en: Refresh
+github.open:
+  en: Open
+github.merged:
+  en: Merged
+github.closed:
+  en: Closed
+github.files_changed:
+  en: "%{count} files changed"
 github.needs_gh:
   en: The gh CLI was not found
 github.needs_gh_description:
