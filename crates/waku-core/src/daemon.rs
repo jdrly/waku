@@ -279,6 +279,20 @@ impl Backend for WakuBackend {
                     catalog: crate::skills::scan_skills(&locations),
                 })
             }
+            Command::GithubListPullRequests { path } => {
+                ensure_shell_environment();
+                let auth = crate::github::probe_auth();
+                let pull_requests = crate::github::list_pull_requests(&path)?;
+                Ok(ResponsePayload::GithubPullRequests {
+                    auth,
+                    pull_requests,
+                })
+            }
+            Command::GithubPullRequestDetail { path, number } => {
+                ensure_shell_environment();
+                let detail = crate::github::pull_request_detail(&path, number)?;
+                Ok(ResponsePayload::GithubPullRequest { detail })
+            }
             Command::SetSkillsEnabled { dirs, enabled } => {
                 for dir in dirs {
                     crate::skills::set_skill_enabled(&dir, enabled)
@@ -1554,6 +1568,8 @@ fn handle_driver_command(
         | Command::ProbeComputerPermissions { .. }
         | Command::LoadUsageHistory { .. }
         | Command::LoadSkills { .. }
+        | Command::GithubListPullRequests { .. }
+        | Command::GithubPullRequestDetail { .. }
         | Command::SetSkillsEnabled { .. }
         | Command::TrashSkills { .. }
         | Command::LoadTaskState

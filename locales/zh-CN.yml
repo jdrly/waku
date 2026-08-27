@@ -165,6 +165,17 @@ common.creating: 正在创建…
 settings.local_by_default: 默认存储在本地
 settings.local_by_default_description: 项目、对话和设置均存储在这台电脑上
 settings.local_by_default_web_description: 项目、对话和附件保留在所连接的守护进程主机上。Waku Web 的偏好设置保留在此浏览器中。
+right_panel.pull_requests: 拉取请求
+right_panel.pull_requests_description: 此项目的开放拉取请求
+github.loading: 正在加载拉取请求…
+github.refresh: 刷新
+github.needs_gh: 未找到 gh CLI
+github.needs_gh_description: "请安装 GitHub CLI (gh) 并通过 `gh auth login` 登录，然后刷新。"
+github.needs_auth: GitHub 未登录
+github.needs_auth_description: "请运行 `gh auth login`，然后刷新。"
+github.list_failed: 无法获取拉取请求列表
+github.back: 返回
+github.draft: 草稿
 settings.stream_thinking: 旧版逐字流式显示
 settings.stream_thinking_description: 在模型思考时逐字显示其推理文本。关闭时，思考内容会在模型思考完成后一次性显示。
 settings.automatic_updates: 自动更新

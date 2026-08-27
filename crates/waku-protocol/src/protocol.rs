@@ -13,6 +13,7 @@ use crate::model::{
 use crate::persistence::{ComposerDraftChange, ComposerDrafts, SessionMessageMatch};
 use crate::provider_session::{ProviderSessionFork, ProviderSessionForkRequest};
 use crate::settings::DaemonSettings;
+use crate::github::{GithubAuth, GithubPullRequestDetail, GithubPullRequestSummary};
 use crate::skills::SkillsCatalog;
 use crate::usage::PlanUsage;
 use crate::usage_history::{UsageHistory, UsageWindow};
@@ -152,6 +153,16 @@ pub enum Command {
     },
     LoadSkills {
         projects: Vec<(String, PathBuf)>,
+    },
+    /// List open pull requests for the repository at `path` via the `gh` CLI.
+    /// The daemon owns the spawn; results are already parsed into wire types.
+    GithubListPullRequests {
+        path: PathBuf,
+    },
+    /// Fetch one pull request's full body and conversation for the detail view.
+    GithubPullRequestDetail {
+        path: PathBuf,
+        number: u64,
     },
     SetSkillsEnabled {
         dirs: Vec<PathBuf>,
@@ -389,6 +400,13 @@ pub enum ResponsePayload {
     },
     SkillsCatalog {
         catalog: SkillsCatalog,
+    },
+    GithubPullRequests {
+        auth: GithubAuth,
+        pull_requests: Vec<GithubPullRequestSummary>,
+    },
+    GithubPullRequest {
+        detail: GithubPullRequestDetail,
     },
     TaskState {
         projects: Vec<Project>,

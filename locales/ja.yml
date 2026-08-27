@@ -172,6 +172,17 @@ common.creating: 作成中…
 settings.local_by_default: デフォルトでローカルに保存
 settings.local_by_default_description: プロジェクト、会話、設定はこのコンピュータに保存されます
 settings.local_by_default_web_description: プロジェクト、会話、添付ファイルは接続先デーモンのホストに保存されます。Waku Web の設定はこのブラウザに保存されます。
+right_panel.pull_requests: プルリクエスト
+right_panel.pull_requests_description: このプロジェクトのオープンなプルリクエスト
+github.loading: プルリクエストを読み込み中…
+github.refresh: 更新
+github.needs_gh: gh CLI が見つかりません
+github.needs_gh_description: "GitHub CLI (gh) をインストールし、`gh auth login` でサインインしてから更新してください。"
+github.needs_auth: GitHub にサインインしていません
+github.needs_auth_description: "`gh auth login` を実行してから更新してください。"
+github.list_failed: プルリクエストの一覧を取得できませんでした
+github.back: 戻る
+github.draft: ドラフト
 settings.stream_thinking: レガシートークンストリーミング
 settings.stream_thinking_description: モデルの思考テキストをトークン単位でリアルタイム表示します。オフの場合、思考内容はモデルの思考完了後に表示されます。
 settings.automatic_updates: 自動アップデート

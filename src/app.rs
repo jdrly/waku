@@ -529,6 +529,7 @@ enum RightPanelSurface {
     Files,
     Diff,
     File(String),
+    PullRequests,
 }
 
 /// A turn whose checkpoint still has to be captured.
@@ -1376,6 +1377,21 @@ pub struct Waku {
     /// the primary find shortcut and kept for the window's lifetime so the
     /// query and toggles survive closing the bar; `open` says whether it shows.
     file_search: Option<file_search::FileSearch>,
+    /// GitHub pull-requests panel. Fetched by the daemon through `gh`; frames
+    /// only read these stores.
+    github_pull_requests: Option<Rc<Vec<waku_client::github::GithubPullRequestSummary>>>,
+    github_auth: Option<waku_client::github::GithubAuth>,
+    github_error: Option<String>,
+    github_loading: bool,
+    github_generation: u64,
+    github_detail_loading: bool,
+    github_selected: Option<waku_client::github::GithubPullRequestDetail>,
+    github_detail_markdown: MarkdownView,
+    github_detail_selection: TranscriptSelection,
+    github_list_scroll_handle: ScrollHandle,
+    github_list_scrollbar: Rc<ScrollbarState>,
+    github_detail_scroll_handle: ScrollHandle,
+    github_detail_scrollbar: Rc<ScrollbarState>,
     right_panel_diff_source: ReviewDiffSource,
     right_panel_diff_snapshot: Option<Arc<ReviewDiffSnapshot>>,
     right_panel_diff_loading: bool,
@@ -2892,6 +2908,19 @@ impl Waku {
                 right_panel_file_tree_width: DEFAULT_FILE_TREE_WIDTH,
                 right_panel_file_editors: HashMap::new(),
                 file_search: None,
+                github_pull_requests: None,
+                github_auth: None,
+                github_error: None,
+                github_loading: false,
+                github_generation: 0,
+                github_detail_loading: false,
+                github_selected: None,
+                github_detail_markdown: MarkdownView::new(),
+                github_detail_selection: TranscriptSelection::default(),
+                github_list_scroll_handle: ScrollHandle::new(),
+                github_list_scrollbar: ScrollbarState::new(),
+                github_detail_scroll_handle: ScrollHandle::new(),
+                github_detail_scrollbar: ScrollbarState::new(),
                 right_panel_diff_source: ReviewDiffSource::default(),
                 right_panel_diff_snapshot: None,
                 right_panel_diff_loading: false,

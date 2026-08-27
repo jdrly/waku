@@ -337,6 +337,28 @@ settings.local_by_default_description:
   en: Projects, conversations, and settings are stored on this computer
 settings.local_by_default_web_description:
   en: Projects, conversations, and attachments stay on the connected daemon host. Waku Web preferences stay in this browser.
+right_panel.pull_requests:
+  en: Pull requests
+right_panel.pull_requests_description:
+  en: Open pull requests for this project
+github.loading:
+  en: Loading pull requests…
+github.refresh:
+  en: Refresh
+github.needs_gh:
+  en: The gh CLI was not found
+github.needs_gh_description:
+  en: "Install the GitHub CLI (gh) and sign in with `gh auth login`, then refresh."
+github.needs_auth:
+  en: GitHub is not signed in
+github.needs_auth_description:
+  en: "Run `gh auth login`, then refresh."
+github.list_failed:
+  en: Could not list pull requests
+github.back:
+  en: Back
+github.draft:
+  en: draft
 settings.stream_thinking:
   en: Legacy token streaming
 settings.stream_thinking_description:

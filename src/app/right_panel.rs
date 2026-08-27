@@ -897,6 +897,7 @@ impl RightPanelSurface {
             }
             Self::Files => tr!("right_panel.files"),
             Self::Diff => tr!("right_panel.diff"),
+            Self::PullRequests => tr!("right_panel.pull_requests"),
             Self::File(path) => path.rsplit('/').next().unwrap_or(path).to_owned(),
         }
     }
@@ -908,6 +909,7 @@ impl RightPanelSurface {
             Self::BackgroundWork { key, .. } => work_kind_icon(key.kind),
             Self::Files => "icons/folder.svg",
             Self::Diff => "icons/file-diff.svg",
+            Self::PullRequests => "icons/github.svg",
             Self::File(path) => file_icon_for_path(path),
         }
     }
@@ -947,7 +949,10 @@ fn reusable_surface_index(
         RightPanelSurface::BackgroundWork { key, .. } => surfaces.iter().position(|surface| {
             matches!(surface, RightPanelSurface::BackgroundWork { key: candidate, .. } if candidate == key)
         }),
-        RightPanelSurface::Files | RightPanelSurface::Diff | RightPanelSurface::File(_) => {
+        RightPanelSurface::Files
+        | RightPanelSurface::Diff
+        | RightPanelSurface::File(_)
+        | RightPanelSurface::PullRequests => {
             surfaces.iter().position(|surface| surface == requested)
         }
     }
@@ -1969,6 +1974,9 @@ impl Waku {
         ) {
             self.refresh_right_panel_working_tree(cx);
         }
+        if surface == RightPanelSurface::PullRequests {
+            self.refresh_github_pull_requests(cx);
+        }
         if let Some(terminal_id) = surface.terminal_id() {
             self.ensure_right_panel_terminal(terminal_id, cx);
         }
@@ -1987,6 +1995,404 @@ impl Waku {
         self.request_active_browser_focus();
         self.set_right_panel_visible(true, cx);
         cx.notify();
+    }
+
+    /// Kick off a daemon fetch of the pull-request list. Everything heavy runs
+    /// on the daemon; this only dispatches the request off the UI thread.
+    pub(super) fn refresh_github_pull_requests(&mut self, cx: &mut Context<Self>) {
+        let Some(project) = self.selected_project() else {
+            return;
+        };
+        let path = project.path.clone();
+        self.github_loading = true;
+        self.github_generation = self.github_generation.wrapping_add(1);
+        let generation = self.github_generation;
+        let daemon = self.daemon.client();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    match daemon.request(
+                        Uuid::nil(),
+                        Uuid::nil(),
+                        waku_client::Command::GithubListPullRequests { path },
+                    )? {
+                        waku_client::ResponsePayload::GithubPullRequests {
+                            auth,
+                            pull_requests,
+                        } => Ok((auth, pull_requests)),
+                        _ => anyhow::bail!("the daemon returned an invalid pull-request response"),
+                    }
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.github_generation != generation {
+                    // A newer fetch superseded this one; the result is stale.
+                    return;
+                }
+                this.github_loading = false;
+                match result {
+                    Ok((auth, pull_requests)) => {
+                        this.github_auth = Some(auth);
+                        this.github_pull_requests = Some(Rc::new(pull_requests));
+                        this.github_error = None;
+                    }
+                    Err(error) => this.github_error = Some(error.to_string()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Open the detail view for one pull request and fetch its conversation.
+    pub(super) fn open_github_pull_request(&mut self, number: u64, cx: &mut Context<Self>) {
+        let Some(project) = self.selected_project() else {
+            return;
+        };
+        let path = project.path.clone();
+        self.github_selected = None;
+        self.github_detail_loading = true;
+        let daemon = self.daemon.client();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    match daemon.request(
+                        Uuid::nil(),
+                        Uuid::nil(),
+                        waku_client::Command::GithubPullRequestDetail { path, number },
+                    )? {
+                        waku_client::ResponsePayload::GithubPullRequest { detail } => Ok(detail),
+                        _ => anyhow::bail!("the daemon returned an invalid pull-request response"),
+                    }
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                this.github_detail_loading = false;
+                match result {
+                    Ok(detail) => {
+                        // One markdown document carries the body plus the
+                        // conversation, so the detail view needs a single view.
+                        let mut text = detail.body.clone();
+                        for comment in &detail.comments {
+                            text.push_str(&format!(
+                                "\n\n---\n\n**{}** · {}\n\n{}",
+                                comment.author, comment.created_at, comment.body
+                            ));
+                        }
+                        this.github_detail_markdown.set_text(&text, false);
+                        this.github_selected = Some(detail);
+                        this.github_error = None;
+                    }
+                    Err(error) => this.github_error = Some(error.to_string()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn render_right_panel_github(&self, cx: &mut Context<Self>) -> Div {
+        if let Some(detail) = self.github_selected.as_ref() {
+            return self.render_github_pull_request_detail(detail, cx);
+        }
+        let theme = Theme::current(cx);
+        let mut column = div().w_full().min_h_0().flex().flex_col().child(
+            div()
+                .px(px(14.0))
+                .py(px(10.0))
+                .border_b_1()
+                .border_color(theme.border)
+                .flex()
+                .items_center()
+                .child(
+                    div()
+                        .text_size(sp(12.5))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(theme.text)
+                        .child(tr!("right_panel.pull_requests")),
+                )
+                .child(
+                    div()
+                        .id("github-refresh")
+                        .tab_index(0)
+                        .focus_visible(|style| style.border_1().border_color(theme.accent))
+                        .ml(px(8.0))
+                        .px(px(8.0))
+                        .py(px(3.0))
+                        .rounded(px(6.0))
+                        .text_size(sp(12.0))
+                        .text_color(theme.text_secondary)
+                        .cursor_pointer()
+                        .hover(|style| style.bg(theme.overlay))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.refresh_github_pull_requests(cx);
+                        })),
+                ),
+        );
+
+        if let Some(auth) = self.github_auth.as_ref() {
+            if auth.status == waku_client::github::GithubAuthStatus::Unavailable {
+                column = column.child(self.render_github_message(
+                    tr!("github.needs_gh"),
+                    tr!("github.needs_gh_description"),
+                    &theme,
+                ));
+                return column;
+            }
+            if auth.status == waku_client::github::GithubAuthStatus::Unauthenticated {
+                column = column.child(self.render_github_message(
+                    tr!("github.needs_auth"),
+                    tr!("github.needs_auth_description"),
+                    &theme,
+                ));
+                return column;
+            }
+        }
+        if let Some(error) = self.github_error.as_ref() {
+            column = column.child(self.render_github_message(
+                tr!("github.list_failed"),
+                error.clone(),
+                &theme,
+            ));
+        }
+        match self.github_pull_requests.as_ref() {
+            None => {
+                column = column.child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .text_size(sp(12.5))
+                        .text_color(theme.text_tertiary)
+                        .child(tr!("github.loading")),
+                );
+            }
+            Some(pull_requests) => {
+                let mut rows = div().w_full().flex().flex_col();
+                for pull_request in pull_requests.iter() {
+                    rows = rows.child(self.render_github_pull_request_row(pull_request, cx));
+                }
+                column = column.child(
+                    div()
+                        .id("github-pr-list")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.github_list_scroll_handle)
+                        .px(px(10.0))
+                        .py(px(8.0))
+                        .child(rows)
+                        .child(scrollbar::vertical(
+                            &self.github_list_scroll_handle,
+                            &self.github_list_scrollbar,
+                        )),
+                );
+            }
+        }
+        column
+    }
+
+    fn render_github_pull_request_row(
+        &self,
+        pull_request: &waku_client::github::GithubPullRequestSummary,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let theme = Theme::current(cx);
+        let number = pull_request.number;
+        let mut meta = format!(
+            "{} · {} → {} · +{} −{} · {}",
+            pull_request.author,
+            pull_request.head_ref,
+            pull_request.base_ref,
+            pull_request.additions,
+            pull_request.deletions,
+            pull_request.updated_at.split('T').next().unwrap_or("")
+        );
+        if pull_request.is_draft {
+            meta.push_str(&format!(" · {}", tr!("github.draft")));
+        }
+        if pull_request.state != "OPEN" {
+            meta.push_str(&format!(" · {}", pull_request.state.to_lowercase()));
+        }
+        div()
+            .id(SharedString::from(format!(
+                "github-pr-{}",
+                pull_request.number
+            )))
+            .tab_index(0)
+            .focus_visible(|style| style.border_1().border_color(theme.accent))
+            .w_full()
+            .px(px(9.0))
+            .py(px(7.0))
+            .rounded(px(8.0))
+            .cursor_pointer()
+            .hover(|style| style.bg(theme.overlay))
+            .flex()
+            .flex_col()
+            .gap(px(3.0))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.open_github_pull_request(number, cx);
+            }))
+            .child(
+                div()
+                    .text_size(sp(12.5))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme.text)
+                    .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                    .child(format!("#{} {}", pull_request.number, pull_request.title)),
+            )
+            .child(
+                div()
+                    .text_size(sp(11.5))
+                    .text_color(theme.text_secondary)
+                    .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                    .child(meta),
+            )
+    }
+
+    fn render_github_pull_request_detail(
+        &self,
+        detail: &waku_client::github::GithubPullRequestDetail,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let theme = Theme::current(cx);
+        let palette = MarkdownPalette::from_theme(&theme);
+        let ctx = MarkdownCtx::new(
+            String::from("github-detail"),
+            &palette,
+            MarkdownMetrics::document(self.state.ui_font_size, self.state.code_font_size),
+            self.github_detail_selection.clone(),
+        )
+        .with_link_handler(self.markdown_link_handler.clone());
+        let document = md::render::markdown(&self.github_detail_markdown, &ctx);
+        let selection_input = {
+            let selection = self.github_detail_selection.clone();
+            canvas(
+                |_, _, _| (),
+                move |_, _, window, _| md::render::install_selection_input(window, &selection),
+            )
+            .absolute()
+            .w(px(0.0))
+            .h(px(0.0))
+        };
+        div()
+            .w_full()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .px(px(14.0))
+                    .py(px(10.0))
+                    .border_b_1()
+                    .border_color(theme.border)
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .child(
+                                div()
+                                    .id("github-back")
+                                    .tab_index(0)
+                                    .focus_visible(|style| {
+                                        style.border_1().border_color(theme.accent)
+                                    })
+                                    .px(px(8.0))
+                                    .py(px(3.0))
+                                    .rounded(px(6.0))
+                                    .text_size(sp(12.0))
+                                    .text_color(theme.text_secondary)
+                                    .cursor_pointer()
+                                    .hover(|style| style.bg(theme.overlay))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.github_selected = None;
+                                        cx.notify();
+                                    }))
+                                    .child(tr!("github.back")),
+                            )
+                            .child(
+                                div()
+                                    .ml(px(8.0))
+                                    .text_size(sp(12.0))
+                                    .text_color(theme.text_tertiary)
+                                    .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                                    .child(format!(
+                                        "{} · {} → {} · +{} −{} · {}",
+                                        detail.author,
+                                        detail.head_ref,
+                                        detail.base_ref,
+                                        detail.additions,
+                                        detail.deletions,
+                                        detail.updated_at.split('T').next().unwrap_or("")
+                                    )),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_size(sp(13.0))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme.text)
+                            .text_overflow(gpui::TextOverflow::Truncate("…".into()))
+                            .child(format!("#{} {}", detail.number, detail.title)),
+                    ),
+            )
+            .child(
+                div()
+                    .id("github-detail-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.github_detail_scroll_handle)
+                    .child(md::render::frame_reset(
+                        self.github_detail_selection.clone(),
+                    ))
+                    .child(
+                        div()
+                            .px(px(14.0))
+                            .py(px(12.0))
+                            .pb(px(24.0))
+                            .text_color(theme.text)
+                            .children(document),
+                    )
+                    .child(selection_input)
+                    .child(scrollbar::vertical(
+                        &self.github_detail_scroll_handle,
+                        &self.github_detail_scrollbar,
+                    )),
+            )
+    }
+
+    fn render_github_message(&self, title: String, description: String, theme: &Theme) -> Div {
+        div()
+            .mx(px(14.0))
+            .mt(px(14.0))
+            .px(px(14.0))
+            .py(px(12.0))
+            .rounded(px(8.0))
+            .bg(theme.raised)
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_size(sp(12.5))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme.text)
+                    .child(title),
+            )
+            .child(
+                div()
+                    .text_size(sp(12.0))
+                    .text_color(theme.text_secondary)
+                    .child(description),
+            )
     }
 
     pub(super) fn open_turn_diff(&mut self, turn_id: Uuid, cx: &mut Context<Self>) {
@@ -2190,6 +2596,9 @@ impl Waku {
             Some(RightPanelSurface::File(path)) => self
                 .render_right_panel_file(path, width, window, cx)
                 .into_any_element(),
+            Some(RightPanelSurface::PullRequests) => {
+                self.render_right_panel_github(cx).into_any_element()
+            }
             Some(RightPanelSurface::Browser(browser_id)) => {
                 let browser = self.ensure_right_panel_browser(browser_id, window, cx);
                 if self
@@ -2637,7 +3046,14 @@ impl Waku {
                                 tr!("right_panel.diff_description"),
                                 cx,
                             )),
-                    ),
+                    )
+                    .child(div().mt(px(8.0)).w_full().flex().gap(px(8.0)).child(
+                        self.render_right_panel_card(
+                            RightPanelSurface::PullRequests,
+                            tr!("right_panel.pull_requests_description"),
+                            cx,
+                        ),
+                    )),
             )
     }
 
@@ -3012,14 +3428,11 @@ impl Waku {
         .detach();
 
         let focused_path = relative_path.to_owned();
-        cx.subscribe(
-            &state,
-            move |this: &mut Self, _, event: &InputEvent, cx| {
-                if matches!(event, InputEvent::Focus) {
-                    this.reload_right_panel_file_if_clean(focused_path.as_str(), cx);
-                }
-            },
-        )
+        cx.subscribe(&state, move |this: &mut Self, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Focus) {
+                this.reload_right_panel_file_if_clean(focused_path.as_str(), cx);
+            }
+        })
         .detach();
 
         self.read_right_panel_file_into_editor(relative_path.to_owned(), cx);

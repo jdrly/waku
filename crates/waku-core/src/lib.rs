@@ -33,6 +33,7 @@ pub mod driver;
 mod frontmatter;
 pub mod git_branch;
 pub mod git_commit;
+pub mod github;
 pub mod grok_session;
 pub mod i18n;
 pub mod identity;
