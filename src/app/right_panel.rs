@@ -2257,6 +2257,8 @@ impl Waku {
         let theme = Theme::current(cx);
         let number = pull_request.number;
         let time_ago = self.github_time_ago(&pull_request.updated_at, pull_request.updated_at_unix);
+        let state_color =
+            Self::github_state_color(&pull_request.state, pull_request.is_draft, &theme);
         let mut meta = format!(
             "{} · {} → {}",
             pull_request.author, pull_request.head_ref, pull_request.base_ref
@@ -2281,25 +2283,22 @@ impl Waku {
             .cursor_pointer()
             .hover(|style| style.bg(theme.overlay))
             .flex()
-            .items_start()
-            .gap(px(10.0))
+            .flex_col()
+            .gap(px(3.0))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.open_github_pull_request(number, cx);
             }))
-            .child(div().pt(px(1.0)).child(icon(
-                "icons/git-pull-request.svg",
-                14.0,
-                Self::github_state_color(&pull_request.state, pull_request.is_draft, &theme),
-            )))
+            // Title line: inline PR icon rides with the title, time on the right.
             .child(
                 div()
-                    .flex_1()
-                    .min_w_0()
                     .flex()
-                    .flex_col()
-                    .gap(px(3.0))
+                    .items_center()
+                    .gap(px(8.0))
+                    .child(icon("icons/git-pull-request.svg", 14.0, state_color))
                     .child(
                         div()
+                            .flex_1()
+                            .min_w_0()
                             .text_size(sp(12.5))
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(theme.text)
@@ -2308,27 +2307,30 @@ impl Waku {
                     )
                     .child(
                         div()
+                            .flex_none()
+                            .text_size(sp(11.0))
+                            .text_color(theme.text_tertiary)
+                            .child(time_ago),
+                    ),
+            )
+            // Meta line: author/branches on the left, colored +/- on the right.
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(5.0))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
                             .text_size(sp(11.5))
                             .text_color(theme.text_secondary)
                             .text_overflow(gpui::TextOverflow::Truncate("…".into()))
                             .child(meta),
-                    ),
-            )
-            .child(
-                div()
-                    .flex_none()
-                    .flex()
-                    .flex_col()
-                    .items_end()
-                    .gap(px(2.0))
-                    .child(
-                        div()
-                            .text_size(sp(11.0))
-                            .text_color(theme.text_tertiary)
-                            .child(time_ago),
                     )
                     .child(
                         div()
+                            .flex_none()
                             .flex()
                             .gap(px(5.0))
                             .text_size(sp(11.0))
@@ -2383,6 +2385,7 @@ impl Waku {
                 div()
                     .px(px(14.0))
                     .pt(px(10.0))
+                    .pb(px(12.0))
                     .flex()
                     .items_center()
                     .justify_between()
